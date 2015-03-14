@@ -19,6 +19,12 @@
 		text-align: center;
 		color: #ffff00;
 	}
+	#state {
+		position: absolute;
+		bottom: 100px; width: 100%;
+		text-align: center;
+		color: #ffff00;
+	}
 	strong {color: red}
 </style>
 </head>
@@ -27,6 +33,7 @@
 
 <div id="info">Press <strong>UP</strong> and <strong>DOWN</strong> to change speed<br/>
 Press <strong>PageUp</strong> and <strong>PageDown</strong> to turn the volume</div>
+<div id="state">speed: 1 volume: 3</div>
 
 <script src="js/three.min.js"></script>
 <script src="js/OrbitControls.js"></script>
@@ -43,6 +50,7 @@ var camera, scene, renderer, sun, earth, angle = 0,
 var earth_Mesh;
 var keyboard = new KeyboardState();
 var bgm = document.getElementById ("bgm");
+var state = document.getElementById ("state");
 
 bgm.play();
 bgm.volume = 0.3;
@@ -131,6 +139,11 @@ function animate() {
 	update();
 }
 
+function stateUpdate()
+{
+	state.innerHTML = "speed: "+Math.round(speed*100-4)+" volume: "+Math.round(bgm.volume*10);
+}
+
 function update() 
 {
 	keyboard.update();
@@ -140,19 +153,23 @@ function update()
 	{
 		if (speed <= 0.19)
 			speed += 0.01;
+		stateUpdate();
 	}
 	if (keyboard.down ("down"))
 	{
 		if (speed >= 0.06)
 			speed -= 0.01;
+		stateUpdate();
 	}
 	if (keyboard.down ("pageup"))
 	{
 		bgm.volume += 0.1;
+		stateUpdate();
 	}
 	if (keyboard.down ("pagedown"))
 	{
 		bgm.volume -= 0.1;
+		stateUpdate();
 	}
 }
 
