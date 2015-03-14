@@ -32,12 +32,16 @@
 <body>
 
 <div id="info">Press <strong>UP</strong> and <strong>DOWN</strong> to change speed<br/>
-Press <strong>PageUp</strong> and <strong>PageDown</strong> to turn the volume</div>
+Press <strong>PageUp</strong> and <strong>PageDown</strong> to turn the volume<br/>
+Press <strong>A</strong> ang <strong>S</strong> to turn the rotate<br/>
+Press <strong>C</strong> to turn on/off the star</div>
+
 <div id="state">speed: 1 volume: 3</div>
 
 <script src="js/three.min.js"></script>
 <script src="js/OrbitControls.js"></script>
 <script src="js/KeyboardState.js"></script>
+<script src="star.js"></script>
 
 <audio id="bgm" style="display:none" loop="loop">
 <source src="sounds/universe_BGM_peace.mp3" type='audio/mp3'>
@@ -45,12 +49,15 @@ Press <strong>PageUp</strong> and <strong>PageDown</strong> to turn the volume</
 
 <script>
 
-var camera, scene, renderer, sun, earth, angle = 0,
+var camera, scene, renderer, sun, earth, angle_s = 0, angle_a = 0,
     clock, control, speed = 0.05;
 var earth_Mesh;
 var keyboard = new KeyboardState();
 var bgm = document.getElementById ("bgm");
 var state = document.getElementById ("state");
+var turn_s = true, turn_a = true;
+var s_angle, e_angle, m_angle;
+var sceneBack, cameraBack;
 
 bgm.play();
 bgm.volume = 0.3;
@@ -63,10 +70,33 @@ function init() {
     renderer.setSize(window.innerWidth, window.innerHeight);
 	renderer.shadowMapEnabled = true;
 	renderer.shadowMapSoft = true;
+	
+	renderer.autoClear = false;
 
     document.body.appendChild(renderer.domElement);
 
     clock = new THREE.Clock();
+	
+	// multi-pass rendering
+	sceneBack = new THREE.Scene();
+	cameraBack = new THREE.OrthographicCamera(-10, 10, 10, -10, 1, 100);
+	cameraBack.position.z = 5;
+	cameraBack.lookAt (new THREE.Vector3 (0, 0, 0));
+	
+	THREE.ImageUtils.crossOrigin = '';
+    var texture = THREE.ImageUtils.loadTexture('images/universe1.jpg');
+
+    var back = new THREE.Mesh(new THREE.PlaneGeometry(20, 20),
+    new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: 0.315
+    }));
+    back.material.depthTest = false;
+    back.material.depthWrite = false;
+    sceneBack.add(back);
+	
+	
     scene = new THREE.Scene();
 
 	//camera
@@ -104,6 +134,7 @@ function init() {
 	sun.add (corona);
 	
 	// universe
+	/*
 	var universe_Geo = new THREE.BoxGeometry(10000, 10000, 10000);
 	var universe_Mat = new THREE.MeshLambertMaterial({map: 
 	new THREE.ImageUtils.loadTexture ('images/universe1.jpg'),
@@ -113,17 +144,15 @@ function init() {
 	var universe = new THREE.Mesh (universe_Geo, universe_Mat);
 	
 	scene.add (universe);
-
-	//grid
-    var gridXZ = new THREE.GridHelper(100, 10);
-    gridXZ.setColors(new THREE.Color(0xff0000), new THREE.Color(0xffffff));
-    //scene.add(gridXZ);
-
+	*/
+	
 	//light
     light = new THREE.PointLight(0xffffff);
     light.position.set(0, 100, 0);
     scene.add(light);
 
+	initStar();
+	
     window.addEventListener('resize', onWindowResize, false);
 }
 
@@ -135,6 +164,35 @@ function onWindowResize() {
 
 function animate() {
     requestAnimationFrame(animate);
+	
+	// self rotation
+	// angle/year
+	if (turn_s)
+	{
+		angle_s += 1 / 180 * Math.PI * speed;
+		
+		s_angle = angle_s * 15;
+		e_angle = angle_s * 365;
+		m_angle = angle_s * 13.36;
+	
+		sun.rotation.y = s_angle;
+		earth_Mesh.rotation.y = e_angle;
+		moon.rotation.y = m_angle;
+	}
+	
+	// rotation
+    if (turn_a)
+	{
+		angle_a += 1 / 180 * Math.PI * speed;
+		
+		earth.position.set(200 * Math.cos(angle_a), 0, -200 * Math.sin(angle_a));
+		earth.rotation.y = angle_a;
+
+		angle2 = angle_a * 12.36;   //+1
+		moon.position.set(40 * Math.cos(angle2), 0, -40 * Math.sin(angle2));
+		moon.rotation.y = angle2;
+	}
+	
     render();
 	update();
 }
@@ -168,34 +226,35 @@ function update()
 	}
 	if (keyboard.down ("pagedown"))
 	{
-		bgm.volume -= 0.1;
+	    bgm.volume -= 0.1;
 		stateUpdate();
 	}
+	if (keyboard.down ("S"))
+	{
+		turn_s = !turn_s;
+	}
+	if (keyboard.down ("A"))
+	{
+		turn_a = !turn_a;
+	}
+	if (keyboard.down ("C"))
+	{
+		star = !star;
+		if (star == true)
+			createStar();
+		else
+			removeStar();
+	}
+	
+	// star
+	
 }
 
-function render() {
-    angle += 1 / 180 * Math.PI * speed;
-
-	// self rotation
-	var s_angle, e_angle, m_angle;
-	// angle/year
-	s_angle = angle * 15;
-	e_angle = angle * 365;
-	m_angle = angle * 13.36;
-	
-	sun.rotation.y = s_angle;
-	earth_Mesh.rotation.y = e_angle;
-	moon.rotation.y = m_angle;
-	
-	// rotation
-    earth.position.set(200 * Math.cos(angle), 0, -200 * Math.sin(angle));
-    earth.rotation.y = angle;
-
-    angle2 = angle * 12.36;   //+1
-    moon.position.set(40 * Math.cos(angle2), 0, -40 * Math.sin(angle2));
-    moon.rotation.y = angle2;
-	
-    renderer.render(scene, camera);
+function render() 
+{
+    renderer.clear();
+	renderer.render(sceneBack, cameraBack);
+	renderer.render(scene, camera);
 }
 
 </script>
