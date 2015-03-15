@@ -186,11 +186,9 @@ function animate() {
 		angle_a += 1 / 180 * Math.PI * speed;
 		
 		earth.position.set(200 * Math.cos(angle_a), 0, -200 * Math.sin(angle_a));
-		earth.rotation.y = angle_a;
 
 		angle2 = angle_a * 12.36;   //+1
 		moon.position.set(40 * Math.cos(angle2), 0, -40 * Math.sin(angle2));
-		moon.rotation.y = angle2;
 	}
 	
     render();
