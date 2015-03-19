@@ -4,7 +4,7 @@ var star_shine = 1.0;  // unfinished
 
 function initStar()
 {
-	var particleCount = 1800,
+	var particleCount = 3000,
 		particles = new THREE.Geometry(),
 		pMaterial = new THREE.ParticleBasicMaterial({
 			size: 10,

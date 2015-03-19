@@ -36,7 +36,7 @@ Press <strong>PageUp</strong> and <strong>PageDown</strong> to turn the volume<b
 Press <strong>A</strong> ang <strong>S</strong> to turn the rotate<br/>
 Press <strong>C</strong> to turn on/off the star</div>
 
-<div id="state">speed: 1 volume: 3</div>
+<div id="state">speed: 1 volume: 5</div>
 
 <script src="js/three.min.js"></script>
 <script src="js/OrbitControls.js"></script>
@@ -57,10 +57,10 @@ var bgm = document.getElementById ("bgm");
 var state = document.getElementById ("state");
 var turn_s = true, turn_a = true;
 var s_angle, e_angle, m_angle;
-var sceneBack, cameraBack;
+var sceneBack, cameraBack, back;
 
 bgm.play();
-bgm.volume = 0.3;
+bgm.volume = 0.5;   // init volume
 
 init();
 animate();
@@ -86,7 +86,7 @@ function init() {
 	THREE.ImageUtils.crossOrigin = '';
     var texture = THREE.ImageUtils.loadTexture('images/universe1.jpg');
 
-    var back = new THREE.Mesh(new THREE.PlaneGeometry(20, 20),
+    back = new THREE.Mesh(new THREE.PlaneGeometry(20, 20),
     new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
@@ -239,9 +239,15 @@ function update()
 	{
 		star = !star;
 		if (star == true)
+		{
 			createStar();
+			sceneBack.remove(back);
+		}
 		else
+		{
 			removeStar();
+			sceneBack.add(back);
+		}
 	}
 	
 	// star
