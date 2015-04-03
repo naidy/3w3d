@@ -4,8 +4,8 @@ var tire2 = new THREE.Object3D();
 function createWheel(tire, size)
 {
 	THREE.ImageUtils.crossOrigin = '';
-    var colormap = THREE.ImageUtils.loadTexture('https://github.com/naidy/3w3d/blob/master/hw3/images/wheel_tex3.png');
-    var colormap2 = THREE.ImageUtils.loadTexture('https://github.com/naidy/3w3d/blob/master/hw3/images/tire_tex.jpg');
+    var colormap = THREE.ImageUtils.loadTexture('images/wheel_tex3.png');
+    var colormap2 = THREE.ImageUtils.loadTexture('images/tire_tex.jpg');
 
     var geometry = new THREE.CircleGeometry((size/5)*5.9, 32);
     var material = new THREE.MeshBasicMaterial({
