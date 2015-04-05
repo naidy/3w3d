@@ -123,7 +123,7 @@ function init() {
     scene.add (body);
 
     //ground
-    var groundGeo = new THREE.BoxGeometry (800, 1, 800, 400, 1, 400);
+    var groundGeo = new THREE.BoxGeometry (800, 1, 800, 60, 1, 60);
     var groundTex = THREE.ImageUtils.loadTexture('images/wood.jpg');
     var groundMat = new THREE.MeshLambertMaterial ({map: groundTex});
 	groundMat.map.wrapS = groundMat.map.wrapT = THREE.RepeatWrapping;
@@ -136,7 +136,7 @@ function init() {
     //light
     light = new THREE.SpotLight(0xffffff, 1.5);
 	light.position.set (0, 150, 0);
-	light.angle = Math.PI / 6;
+	light.angle = Math.PI / 3;
 	light.castShadow = true;
 	light.shadowMapWidth = 2048;
 	light.shadowMapHeight = 2048;
@@ -148,7 +148,7 @@ function init() {
     scene.add(light);
     light.target = body;
 
-    var ambientLight = new THREE.AmbientLight (0x888888);
+    var ambientLight = new THREE.AmbientLight (0x555555);
 	scene.add(ambientLight);
 
 	// dat.gui
