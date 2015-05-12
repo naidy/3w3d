@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+	#hh {
+	    text-align: center;
+	    padding: 0px;
+	}
+	#container {
+	    width: 55%;
+	    float: left;
+	    margin-top: 0px;
+	}
+	#cnvsFrame {
+	    height: 0;
+	    padding-bottom: 70%;
+	}
+	.flc {
+	    float: left;
+	    margin: 15px;
+	    width: 15%;
+	}
+	.buttonClass {
+	    float: left;
+	    width: 15%;
+	    margin: 30px;
+	}
+	.fl {
+	    float: left;
+	    margin: 20px;
+	    font-size: large;
+	}
+	body {
+    	overflow: auto;
+	}
+</style>
+</head>
+
+<body>
+
+<h1 id="hh"> HW5 - Gallery </h1>
+
+<div id="container">
+<div id="cnvsFrame">
+    <canvas id="cnvs"> </canvas>
+</div>
+</div>
+
+<div>
+	<img src="images/1.jpg" class="flc" onclick="javascript:pickTex(1);" />
+    <img src="images/2.jpg" class="flc" onclick="javascript:pickTex(2);" />
+    <img src="images/3.jpg" class="flc" onclick="javascript:pickTex(3);" />
+    <img src="images/4.jpg" class="flc" onclick="javascript:pickTex(4);" />
+</div>
+
+<button id="bttn1" class="buttonClass" onclick="javascript:buttonClick(1)">Local Save
+</button>
+<button id="bttn2" class="buttonClass" onclick="javascript:buttonClick(2)">Local Load
+</button>
+<button id="bttn3" class="buttonClass" onclick="javascript:buttonClick(3)">Clear Pictures
+</button>
+<button id="bttn4" class="buttonClass" onclick="javascript:buttonClick(4)">Clear Local storage
+</button>
+<button id="save" class="buttonClass">File Save</button>
+<input type="file" id="openselect" style="margin: 30px"/>
+
+<div style="clear:both"></div>
+<p class='fl'>
+    Pick a image first, then choose the place to hang up.<br>
+    Right click on a picture to remove it.
+</p>
+
+<script src="js/three.min.js"></script>
+<script src="js/OrbitControls.js"></script>
+<script src="wall.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2014-11-29/FileSaver.min.js"></script>
+
+<script>
+
+var camera, scene, renderer, control;
+var theCanvas, theCanvasFrame;
+var ground;
+var wallF, wallL, wallR, wallF2, wallL2, wallR2;
+var pickables = [], walls = [];
+var raycaster, mouse = new THREE.Vector2();
+var image, isPick = false;
+var picNum, unrealPic;
+var openbtn = document.getElementById("openselect"),
+    saveBtn = document.getElementById("save");
+
+init();
+animate();
+
+function init() {
+	theCanvas = document.getElementById("cnvs");
+    theCanvasFrame = document.getElementById("cnvsFrame");
+
+    renderer = new THREE.WebGLRenderer({
+        canvas: theCanvas,
+        antialias: true
+    });
+    var ww = theCanvasFrame.clientWidth;
+    var hh = theCanvasFrame.clientHeight;
+    renderer.setSize(ww, hh);
+	renderer.setClearColor (0x222222);
+    renderer.shadowMapEnabled = true;
+    renderer.shadowMapType = THREE.PCFShadowMap;
+	
+    scene = new THREE.Scene();
+
+	//camera
+    camera = new THREE.PerspectiveCamera(50, theCanvasFrame.clientWidth / theCanvasFrame.clientHeight, 1, 10000);
+    camera.position.set (0, 30, 175);
+    scene.add(camera);
+	
+	control = new THREE.OrbitControls(camera, renderer.domElement);
+	control.target = new THREE.Vector3(0, 30, 0);
+
+	//ground
+	var groundGeo = new THREE.BoxGeometry (520, 1, 500);
+	var groundTex = THREE.ImageUtils.loadTexture ('images/ground_tex.jpg');
+	var groundBump = THREE.ImageUtils.loadTexture ('images/ground_bump.png');
+	var groundMat = new THREE.MeshPhongMaterial ({ map: groundTex,
+		bumpMap: groundBump });
+
+	groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping;
+	groundTex.repeat.set (10, 10);
+	groundBump.wrapS = groundBump.wrapT = THREE.RepeatWrapping;
+	groundBump.repeat.set (10, 10);
+
+	ground = new THREE.Mesh (groundGeo, groundMat);
+	scene.add (ground);
+
+	//wall
+	wallF = new wall (250, 150, 20);
+	wallF.Mesh.position.set (-125, 75, -240);
+	wallF.AddToScene();
+
+    wallF2 = new wall (250, 150, 20);
+    wallF2.Mesh.position.set (125, 75, -240);
+    wallF2.AddToScene();
+
+	wallL = new wall (250, 150, 20);
+	wallL.Mesh.rotation.y = Math.PI / 2;
+	wallL.Mesh.position.set (-250, 75, 125);
+	wallL.AddToScene();
+
+    wallL2 = new wall (250, 150, 20);
+    wallL2.Mesh.rotation.y = Math.PI / 2;
+    wallL2.Mesh.position.set (-250, 75, -125);
+    wallL2.AddToScene();
+
+	wallR = new wall (250, 150, 20);
+	wallR.Mesh.rotation.y = -Math.PI / 2;
+	wallR.Mesh.position.set (250, 75, -125);
+	wallR.AddToScene();
+
+    wallR2 = new wall (250, 150, 20);
+    wallR2.Mesh.rotation.y = -Math.PI / 2;
+    wallR2.Mesh.position.set (250, 75, 125);
+    wallR2.AddToScene();
+
+    walls.push (wallF);
+    walls.push (wallL);
+    walls.push (wallR);
+    walls.push (wallF2);
+    walls.push (wallL2);
+    walls.push (wallR2);
+	
+	//light
+    light = new THREE.SpotLight(0xffffff);
+    light.position.set(0, 1800, 600);
+    scene.add(light);
+    /*var helper = new THREE.SpotLightHelper(light);
+    scene.add (helper);*/
+
+    light.angle = Math.PI / 2;
+    light.intensity = 1.2;
+    light.castShadow = true;
+    light.shadowMapWidth = 2048;
+    light.shadowMapHeight = 2048;
+    light.shadowCameraNear = 1;
+    light.shadowCameraFar = 2500;
+    light.shadowCameraFov = 60;
+    light.shadowDarkness = .7;
+    //light.shadowCameraVisible = true;
+    light.exponent = 10;
+
+    //ambient
+    var ambient = new THREE.AmbientLight (0x555555);
+    scene.add (ambient);
+	
+    raycaster = new THREE.Raycaster();
+
+    unrealPic = new pictures (null, 0);
+    unrealPic.Mesh.visible = false;
+    scene.add (unrealPic.Mesh);
+
+    window.addEventListener('resize', onWindowResize, false);
+    document.addEventListener('mousedown', onDocumentMouseDown, false);
+    document.addEventListener('mousemove', onDocumentMouseMove, false);
+    openselect.addEventListener("change", doOpen, false);
+    saveBtn.addEventListener("click", doSave, false);
+}
+
+function doOpen(event)
+{
+    var files = event.target.files;
+    var reader = new FileReader();
+    reader.onload = function()
+    {
+        var data = this.result.split(" ");
+        if (data[0] > 0)
+        {
+            var newPic = new pictures (
+                THREE.ImageUtils.loadTexture(whichPic(data[0])));
+            newPic.Mesh.position.x = data[1];
+            newPic.Mesh.position.y = data[2];
+            newPic.Mesh.position.z = data[3];
+            newPic.Mesh.rotation.copy (wallL.Mesh.rotation);
+            wallL.ChangePicture (newPic.Mesh);
+            wallL.picture.picNum = data[0];
+        }
+        else
+            wallL.RemovePicture();
+        if (data[4] > 0)
+        {
+            var newPic = new pictures (
+                THREE.ImageUtils.loadTexture(whichPic(data[4])));
+            newPic.Mesh.position.x = data[5];
+            newPic.Mesh.position.y = data[6];
+            newPic.Mesh.position.z = data[7];
+            newPic.Mesh.rotation.copy (wallL2.Mesh.rotation);
+            wallL2.ChangePicture (newPic.Mesh);
+            wallL2.picture.picNum = data[4];
+        }
+        else
+            wallL2.RemovePicture();
+        if (data[8] > 0)
+        {
+            var newPic = new pictures (
+                THREE.ImageUtils.loadTexture(whichPic(data[8])));
+            newPic.Mesh.position.x = data[9];
+            newPic.Mesh.position.y = data[10];
+            newPic.Mesh.position.z = data[11];
+            newPic.Mesh.rotation.copy (wallF.Mesh.rotation);
+            wallF.ChangePicture (newPic.Mesh);
+            wallF.picture.picNum = data[8];
+        }
+        else
+            wallF.RemovePicture();
+        if (data[12] > 0)
+        {
+            var newPic = new pictures (
+                THREE.ImageUtils.loadTexture(whichPic(data[12])));
+            newPic.Mesh.position.x = data[13];
+            newPic.Mesh.position.y = data[14];
+            newPic.Mesh.position.z = data[15];
+            newPic.Mesh.rotation.copy (wallF2.Mesh.rotation);
+            wallF2.ChangePicture (newPic.Mesh);
+            wallF2.picture.picNum = data[12];
+        }
+        else
+            wallF2.RemovePicture();
+        if (data[16] > 0)
+        {
+            var newPic = new pictures (
+                THREE.ImageUtils.loadTexture(whichPic(data[16])));
+            newPic.Mesh.position.x = data[17];
+            newPic.Mesh.position.y = data[18];
+            newPic.Mesh.position.z = data[19];
+            newPic.Mesh.rotation.copy (wallR.Mesh.rotation);
+            wallR.ChangePicture (newPic.Mesh);
+            wallR.picture.picNum = data[16];
+        }
+        else
+            wallR.RemovePicture();
+        if (data[20] > 0)
+        {
+            var newPic = new pictures (
+                THREE.ImageUtils.loadTexture(whichPic(data[20])));
+            newPic.Mesh.position.x = data[21];
+            newPic.Mesh.position.y = data[22];
+            newPic.Mesh.position.z = data[23];
+            newPic.Mesh.rotation.copy (wallR2.Mesh.rotation);
+            wallR2.ChangePicture (newPic.Mesh);
+            wallR2.picture.picNum = data[20];
+        }
+        else
+            wallR2.RemovePicture();
+    }
+    reader.readAsText (files[0]);
+}
+
+function doSave()
+{
+    var str = "";
+
+    if (wallL.picture == null)
+        str += "0 0 0 0 ";
+    else
+    {
+        str += wallL.picture.picNum;
+        str += " ";
+        str += wallL.picture.position.x;
+        str += " ";
+        str += wallL.picture.position.y;
+        str += " ";
+        str += wallL.picture.position.z;
+        str += " ";
+    }
+    if (wallL2.picture == null)
+        str += "0 0 0 0 ";
+    else
+    {
+        str += wallL2.picture.picNum;
+        str += " ";
+        str += wallL2.picture.position.x;
+        str += " ";
+        str += wallL2.picture.position.y;
+        str += " ";
+        str += wallL2.picture.position.z;
+        str += " ";
+    }
+    if (wallF.picture == null)
+        str += "0 0 0 0 ";
+    else
+    {
+        str += wallF.picture.picNum;
+        str += " ";
+        str += wallF.picture.position.x;
+        str += " ";
+        str += wallF.picture.position.y;
+        str += " ";
+        str += wallF.picture.position.z;
+        str += " ";
+    }
+    if (wallF2.picture == null)
+        str += "0 0 0 0 ";
+    else
+    {
+        str += wallF2.picture.picNum;
+        str += " ";
+        str += wallF2.picture.position.x;
+        str += " ";
+        str += wallF2.picture.position.y;
+        str += " ";
+        str += wallF2.picture.position.z;
+        str += " ";
+    }
+    if (wallR.picture == null)
+        str += "0 0 0 0 ";
+    else
+    {
+        str += wallR.picture.picNum;
+        str += " ";
+        str += wallR.picture.position.x;
+        str += " ";
+        str += wallR.picture.position.y;
+        str += " ";
+        str += wallR.picture.position.z;
+        str += " ";
+    }
+    if (wallR2.picture == null)
+        str += "0 0 0 0 ";
+    else
+    {
+        str += wallR2.picture.picNum;
+        str += " ";
+        str += wallR2.picture.position.x;
+        str += " ";
+        str += wallR2.picture.position.y;
+        str += " ";
+        str += wallR2.picture.position.z;
+        str += " ";
+    }
+
+    var blob = new Blob ([str], {
+        type: "text/plain;charset=utf-8"
+    });
+    saveAs (blob, "data.txt");
+}
+
+function whichPic(num)
+{
+    var pic;
+    if (num == 1)
+        pic = "images/1.jpg";
+    if (num == 2)
+        pic = "images/2.jpg";
+    if (num == 3)
+        pic = "images/3.jpg";
+    if (num == 4)
+        pic = "images/4.jpg";
+    return pic;
+}
+
+function pickTex(num)
+{
+	var pic;
+    pic = whichPic (num);
+
+    image = THREE.ImageUtils.loadTexture (pic);
+    isPick = true;
+    picNum = num;
+}
+
+function buttonClick(num)
+{
+    if (num == 1)
+    {
+        //save
+        var status = {};
+        
+        if (wallL.picture != null)
+        {
+            status.L1Pic = wallL.picture.picNum;
+            status.L1x = wallL.picture.position.x;
+            status.L1y = wallL.picture.position.y;
+            status.L1z = wallL.picture.position.z;
+        }
+        if (wallL2.picture != null)
+        {
+            status.L2Pic = wallL2.picture.picNum;
+            status.L2x = wallL2.picture.position.x;
+            status.L2y = wallL2.picture.position.y;
+            status.L2z = wallL2.picture.position.z;
+        }
+        if (wallF.picture != null)
+        {
+            status.F1Pic = wallF.picture.picNum;
+            status.F1x = wallF.picture.position.x;
+            status.F1y = wallF.picture.position.y;
+            status.F1z = wallF.picture.position.z;
+        }
+        if (wallF2.picture != null)
+        {
+            status.F2Pic = wallF2.picture.picNum;
+            status.F2x = wallF2.picture.position.x;
+            status.F2y = wallF2.picture.position.y;
+            status.F2z = wallF2.picture.position.z;
+        }
+        if (wallR.picture != null)
+        {
+            status.R1Pic = wallR.picture.picNum;
+            status.R1x = wallR.picture.position.x;
+            status.R1y = wallR.picture.position.y;
+            status.R1z = wallR.picture.position.z;
+        }
+        if (wallR2.picture != null)
+        {
+            status.R2Pic = wallR2.picture.picNum;
+            status.R2x = wallR2.picture.position.x;
+            status.R2y = wallR2.picture.position.y;
+            status.R2z = wallR2.picture.position.z;
+        }
+
+        var str = JSON.stringify (status);
+        localStorage.setItem ("status", str);
+        alert ("Save successfully");
+    }
+    else if (num == 2)
+    {
+        //load
+        var str = localStorage.getItem ("status");
+        var status = null;
+
+        try{
+            status = JSON.parse (str);
+
+            var newPic = new pictures (
+                THREE.ImageUtils.loadTexture(whichPic(status.F1Pic)));
+            newPic.Mesh.position.x = status.F1x;
+            newPic.Mesh.position.y = status.F1y;
+            newPic.Mesh.position.z = status.F1z;
+            newPic.Mesh.rotation.copy (wallF.Mesh.rotation);
+            wallF.ChangePicture (newPic.Mesh);
+            wallF.picture.picNum = status.F1Pic;
+
+            newPic = new pictures (
+                THREE.ImageUtils.loadTexture(whichPic(status.F2Pic)));
+            newPic.Mesh.position.x = status.F2x;
+            newPic.Mesh.position.y = status.F2y;
+            newPic.Mesh.position.z = status.F2z;
+            newPic.Mesh.rotation.copy (wallF2.Mesh.rotation);
+            wallF2.ChangePicture (newPic.Mesh);
+            wallF2.picture.picNum = status.F2Pic;
+
+            newPic = new pictures (
+                THREE.ImageUtils.loadTexture(whichPic(status.L1Pic)));
+            newPic.Mesh.position.x = status.L1x;
+            newPic.Mesh.position.y = status.L1y;
+            newPic.Mesh.position.z = status.L1z;
+            newPic.Mesh.rotation.copy (wallL.Mesh.rotation);
+            wallL.ChangePicture (newPic.Mesh);
+            wallL.picture.picNum = status.L1Pic;
+
+            newPic = new pictures (
+                THREE.ImageUtils.loadTexture(whichPic(status.L2Pic)));
+            newPic.Mesh.position.x = status.L2x;
+            newPic.Mesh.position.y = status.L2y;
+            newPic.Mesh.position.z = status.L2z;
+            newPic.Mesh.rotation.copy (wallL2.Mesh.rotation);
+            wallL2.ChangePicture (newPic.Mesh);
+            wallL2.picture.picNum = status.L2Pic;
+
+            newPic = new pictures (
+                THREE.ImageUtils.loadTexture(whichPic(status.R1Pic)));
+            newPic.Mesh.position.x = status.R1x;
+            newPic.Mesh.position.y = status.R1y;
+            newPic.Mesh.position.z = status.R1z;
+            newPic.Mesh.rotation.copy (wallR.Mesh.rotation);
+            wallR.ChangePicture (newPic.Mesh);
+            wallR.picture.picNum = status.R1Pic;
+
+            newPic = new pictures (
+                THREE.ImageUtils.loadTexture(whichPic(status.R2Pic)));
+            newPic.Mesh.position.x = status.R2x;
+            newPic.Mesh.position.y = status.R2y;
+            newPic.Mesh.position.z = status.R2z;
+            newPic.Mesh.rotation.copy (wallR2.Mesh.rotation);
+            wallR2.ChangePicture (newPic.Mesh);
+            wallR2.picture.picNum = status.R2Pic;
+
+            alert ("Load successfully");
+        }
+        catch(e){
+            alert ("No data");
+        }
+    }
+    else if (num == 3)
+    {
+        //clear
+        for (i = 0; i < walls.length; i++)
+            walls[i].RemovePicture();
+    }
+    else if (num == 4)
+    {
+        localStorage.removeItem("status");
+        alert ("Done");
+    }
+}
+
+function onDocumentMouseDown(event) {
+    event.preventDefault();
+    mouse.x = (event.clientX / theCanvasFrame.clientWidth) * 2 - 1 - 0.013;
+    mouse.y = -(event.clientY / theCanvasFrame.clientHeight) * 2 + 1 + 0.28;
+
+    if (mouse.x > 1.01 || mouse.y > 1.01 || mouse.x < -1.01 || mouse.y < -1.01)
+    	return;
+
+    // find intersections
+    var vector = new THREE.Vector3(mouse.x, mouse.y, 1).unproject(camera);
+    //raycaster.set(camera.position, vector.sub(camera.position).normalize());
+    raycaster.setFromCamera( mouse, camera );
+    
+    if (isPick && event.button == 0)
+    {
+        var intersects = raycaster.intersectObjects(pickables);
+        if (intersects.length > 0) {
+            var picture = new pictures (image, 1);
+            for (i = 0; i < walls.length; i++)
+            {
+                if (walls[i].Mesh == intersects[0].object)
+                {
+                    walls[i].ChangePicture (picture.Mesh);
+                    break;
+                }
+            }
+
+            picture.Mesh.position.copy(intersects[0].point);
+            picture.Mesh.rotation.copy (intersects[0].object.rotation);
+
+            isPick = false;
+            document.body.style.cursor = 'auto';
+        }
+    }
+    else if (event.button == 2)
+    {
+        var intersects = raycaster.intersectObjects(pickables);
+        if (intersects.length > 0) {
+            for (i = 0; i < walls.length; i++)
+            {
+                if (walls[i].Mesh == intersects[0].object)
+                {
+                    walls[i].RemovePicture();
+                    break;
+                }
+            }
+        }
+    }
+}
+
+function onDocumentMouseMove(event) {
+    if (!isPick)
+    {
+        unrealPic.Mesh.visible = false;
+        return;
+    }
+
+    event.preventDefault();
+    mouse.x = (event.clientX / theCanvasFrame.clientWidth) * 2 - 1 - 0.013;
+    mouse.y = -(event.clientY / theCanvasFrame.clientHeight) * 2 + 1 + 0.28;
+    
+    if (mouse.x > 1.01 || mouse.y > 1.01 || mouse.x < -1.01 || mouse.y < -1.01)
+    {
+    	document.body.style.cursor = 'auto';
+    	return;
+    }
+
+    var vector = new THREE.Vector3(mouse.x, mouse.y, 1).unproject(camera);
+    //raycaster.set(camera.position, vector.sub(camera.position).normalize());
+    raycaster.setFromCamera( mouse, camera );
+    var intersects = raycaster.intersectObjects(pickables);
+
+    if (intersects.length > 0) {
+        document.body.style.cursor = 'pointer';
+
+        unrealPic.Mat.map = image;
+        unrealPic.Mesh.position.copy(intersects[0].point);
+        unrealPic.Mesh.rotation.copy (intersects[0].object.rotation);
+        unrealPic.Mesh.visible = true;
+    } 
+    else {
+        document.body.style.cursor = 'auto';
+
+        unrealPic.Mesh.visible = false;
+    }
+}
+
+function onWindowResize() {
+    camera.aspect = theCanvasFrame.clientWidth / theCanvasFrame.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(theCanvasFrame.clientWidth, theCanvasFrame.clientHeight);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+	
+    render();
+	update();
+}
+
+function update() 
+{
+	control.update();
+}
+
+function render() 
+{
+	renderer.render(scene, camera);
+}
+
+</script>
+
+</body>
+</html>
