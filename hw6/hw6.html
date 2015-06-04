@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+	body {
+		background-color: #fff;
+		color: #111;
+		margin: 0px;
+		overflow: hidden;
+		font-family: Monospace;
+		font-size: 30px;
+		position: absolute;
+	}
+	#info {
+		position: absolute;
+		top: 10px; width: 100%;
+		
+		padding: 5px;
+		text-align: center;
+		color: #ffff00;
+	}#mode {
+        position: absolute;
+        top: 40px; width: 100%;
+        
+        padding: 5px;
+        text-align: center;
+        color: #ff0000;
+    }
+</style>
+</head>
+
+<body>
+
+<div id="info">HW6</div>
+<div id="mode"></div>
+
+<script src="js/three.min.js"></script>
+<script src="js/OrbitControls.js"></script>
+<script src="js/dat.gui.min.js"></script>
+<script src="js/Stats.js"></script>
+
+<script id="myVertexShader" type="x-shader/x-vertex">
+	varying vec2 vUv;
+	void main()
+	{
+		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+		vUv = uv;
+	}
+</script>
+<script id="myFragmentShader" type="x-shader/x-fragment">
+	uniform sampler2D texture;
+	varying vec2 vUv;
+
+	void main()
+	{
+		vec4 color = texture2D (texture, vUv);
+		if (color.r < 0.85 && color.g > 0.85 && color.b > 0.85) discard;
+		else gl_FragColor = vec4 (.2, .2, .2, 0.) + color;
+	}
+</script>
+<script type="x-shader/x-fragment" id="fragmentShaderDepth">
+    uniform sampler2D texture;
+    varying vec2 vUv;
+
+    vec4 pack_depth(const in float depth) {
+        const vec4 bit_shift = vec4(256.0 * 256.0 * 256.0, 256.0 * 256.0, 256.0, 1.0);
+        const vec4 bit_mask = vec4(0.0, 1.0 / 256.0, 1.0 / 256.0, 1.0 / 256.0);
+        vec4 res = fract(depth * bit_shift);
+        res -= res.xxyz * bit_mask;
+        return res;
+    }
+
+    void main() {
+        vec4 pixel = texture2D(texture, vUv);
+        if (pixel.b > 0.85) discard;
+        gl_FragData[0] = pack_depth(gl_FragCoord.z);
+    }
+</script>
+
+<script>
+
+var camera, scene, renderer, control, light, spotLigh, controls;
+var sceneRTT, rtTexture, model, stats;
+var clock = new THREE.Clock();
+var ground, quads = [];
+var mode = 1, modeInfo = window.document.getElementById ('mode');
+var MD2s = [], animLabels = [];
+var jsonLoader;
+
+init();
+animate();
+
+function init() {
+	sceneRTT = new THREE.Scene();
+    light = new THREE.PointLight(0xffffff);
+    light.position.set(0, 300, 200);
+    sceneRTT.add(light);
+
+    rtTexture = new THREE.WebGLRenderTarget(
+    window.innerWidth, window.innerHeight, {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.NearestFilter,
+        format: THREE.RGBFormat
+    });
+
+    //stats
+    stats = new Stats();
+    stats.domElement.style.position = 'absolute';
+    stats.domElement.style.top = '0px';
+    stats.domElement.style.zIndex = 100;
+    document.body.appendChild( stats.domElement );
+
+    //dat.GUI
+    var gui = new dat.GUI();
+
+    controls = new function () {
+        this.animations = 'run';
+        this.fps = 10;
+        this.mode = function(){modeChange()};
+        this.num = 5;
+    }
+
+    gui.add(controls, 'mode').name('Change Mode');
+    gui.add(controls, 'num', 3, 9).step(1).onChange(function (e) {
+        numChange(controls.num);
+    });
+
+    //model
+    jsonLoader = new THREE.JSONLoader();
+    jsonLoader.load("model/tris.js", function (geometry, mat) {
+        geometry.computeMorphNormals();
+        var mat = new THREE.MeshBasicMaterial(
+                {
+                    map: THREE.ImageUtils.loadTexture("model/yoshi.png"),
+                    morphTargets: true, morphNormals: true
+                });
+
+        model = new THREE.MorphAnimMesh(geometry, mat);
+        model.rotation.y = Math.PI / 2;
+        model.parseAnimations();
+
+        for (var key in model.geometry.animations) {
+            if (key === 'length' || !model.geometry.animations.hasOwnProperty(key)) continue;
+            animLabels.push(key);
+        }
+
+        gui.add(controls, 'animations', animLabels).onChange(function (e) {
+            model.playAnimation(controls.animations, controls.fps);
+            for (var i = 0; i < MD2s.length; i++)
+                MD2s[i].playAnimation(controls.animations, controls.fps);
+        });
+        gui.add(controls, 'fps', 1, 20).step(1).onChange(function (e) {
+            model.playAnimation(controls.animations, controls.fps);
+            for (var i = 0; i < MD2s.length; i++)
+                MD2s[i].playAnimation(controls.animations, controls.fps);
+        });
+        model.playAnimation('run', 10);
+        model.scale.set (1.5, 1.5, 1.5);
+        sceneRTT.add(model);
+    });
+
+    //scene
+    scene = new THREE.Scene();
+    renderer = new THREE.WebGLRenderer({
+        antialias: true
+    });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x888888);
+
+    //camera
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
+    camera.position.y = 80;
+    camera.position.z = 400;
+    camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+    //control
+    control = new THREE.OrbitControls(camera, renderer.domElement);
+    
+    //ambientLight
+    var ambientLight = new THREE.AmbientLight(0x555555);
+    scene.add(ambientLight);
+
+    document.body.appendChild(renderer.domElement);
+
+    //plane
+    var plane = new THREE.PlaneBufferGeometry(150, 150);
+    rttmaterial = new THREE.ShaderMaterial({
+        side: THREE.DoubleSide,
+        uniforms: {
+            texture: {
+                type: "t",
+                value: rtTexture
+            }
+        },
+        vertexShader: document.getElementById('myVertexShader').textContent,
+        fragmentShader: document.getElementById('myFragmentShader').textContent
+    });
+    quad = new THREE.Mesh(plane, rttmaterial);
+    for (var i = -2; i <= 2; i++)
+    {
+        for (var j = -2; j <= 2; j++) {
+            var quadij = quad.clone();
+            quadij.position.set (50*i,20,50*j);
+            scene.add (quadij);
+            quads.push (quadij);
+        }
+    }
+
+    //shadowing
+    renderer.shadowMapEnabled = true;
+    renderer.shadowMapType = THREE.PCFShadowMap;
+
+    for (var i = 0; i < quads.length; i++)
+    {
+        quads[i].castShadow = true;
+        quads[i].customDepthMaterial = new THREE.ShaderMaterial({
+            side: THREE.DoubleSide,
+            uniforms: {
+                texture: {
+                    type: 't',
+                    value: rtTexture
+                }
+            },
+            vertexShader: document.getElementById('myVertexShader').textContent,
+            fragmentShader: document.getElementById('fragmentShaderDepth').textContent
+        });
+    }
+
+    //spotlight
+    spotLight = new THREE.SpotLight(0xffffff, 1);
+    spotLight.position.set(0, 300, 300);
+    spotLight.angle = Math.PI / 3;
+    spotLight.castShadow = true;
+    spotLight.shadowMapWidth = 2048;
+    spotLight.shadowMapHeight = 2048;
+    spotLight.shadowCameraNear = 5;
+    spotLight.shadowCameraFar = 4000;
+    spotLight.shadowCameraFov = spotLight.angle / Math.PI * 180;
+    spotLight.exponent = 20;
+    scene.add(spotLight);
+
+    //ground
+    var groundGeo = new THREE.BoxGeometry (520, 1, 500);
+    var groundTex = THREE.ImageUtils.loadTexture ('images/wood.jpg');
+    var groundBump = THREE.ImageUtils.loadTexture ('images/wood_bump.png');
+    var groundMat = new THREE.MeshPhongMaterial ({ map: groundTex,
+        bumpMap: groundBump });
+
+    groundTex.wrapS = groundTex.wrapT = THREE.RepeatWrapping;
+    groundTex.repeat.set (3, 3);
+    groundBump.wrapS = groundBump.wrapT = THREE.RepeatWrapping;
+    groundBump.repeat.set (3, 3);
+
+    ground = new THREE.Mesh (groundGeo, groundMat);
+    scene.add (ground);
+    ground.receiveShadow = true;
+}
+
+function createModel(x, z)
+{
+    var m = model.clone();
+    m.parseAnimations();
+    m.playAnimation(controls.animations, controls.fps);
+    m.scale.set (0.7, 0.7, 0.7);
+    m.position.set (x, 20, z);
+    m.castShadow = true;
+    scene.add (m);
+    quads.push(m);
+    MD2s.push(m);
+}
+
+function numChange(num)
+{
+    var l = quads.length;
+    var n = num-1;
+    for (i = l - 1; i >= 0; i--)
+    {
+        scene.remove (quads[i]);
+        quads.pop();
+        if (mode == 2)
+            MD2s.pop();
+    }
+
+    if (mode == 1)
+    {
+        for (var i = -(n/2); i <= (n/2); i++)
+        {
+            for (var j = -(n/2); j <= (n/2); j++) {
+                var quadij = quad.clone();
+                quadij.position.set (50*i,20,50*j);
+                scene.add (quadij);
+                quads.push (quadij);
+            }
+        }
+        for (var i = 0; i < quads.length; i++)
+        {
+            quads[i].castShadow = true;
+            quads[i].customDepthMaterial = new THREE.ShaderMaterial({
+                side: THREE.DoubleSide,
+                uniforms: {
+                    texture: {
+                        type: 't',
+                        value: rtTexture
+                    }
+                },
+                vertexShader: document.getElementById('myVertexShader').textContent,
+                fragmentShader: document.getElementById('fragmentShaderDepth').textContent
+            });
+        }
+    }
+
+    else
+    {
+        for (var i = -(n/2); i <= (n/2); i++)
+        {
+            for (var j = -(n/2); j <= (n/2); j++) {
+                createModel(50*i, 50*j);
+            }
+        }
+    }
+}
+
+function modeChange()
+{
+    if (mode == 1)
+        mode = 2;
+    else
+        mode = 1;
+
+    numChange(controls.num);
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function rotateBillboard (mesh)
+{
+	var b = mesh.position.clone();
+    var rotaxis = new THREE.Vector3();
+    var v, yhat, n;
+    
+    v = camera.position.clone();
+    yhat = new THREE.Vector3(0, 1, 0);
+    n = new THREE.Vector3(0, 0, 1);
+
+    v.subVectors(v, b);
+    v.sub(yhat.clone().multiplyScalar(v.dot(yhat)));
+    v.normalize();
+
+    rotangle = Math.acos(v.dot(n));
+    rotaxis.crossVectors(n, v);
+    if (rotaxis.dot(yhat) < 0) rotangle *= -1;
+
+    mesh.rotation.y = rotangle;
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    var delta = clock.getDelta();
+
+    if (model)
+    {
+        model.updateAnimation (delta * 1000);
+    }
+
+    if (mode == 1)
+    {
+        for (var i = 0; i < quads.length; i++)
+            rotateBillboard (quads[i]);
+    }
+	
+    for (var i = 0; i < MD2s.length; i++)
+        MD2s[i].updateAnimation (delta * 1000);
+
+    render();
+	update();
+}
+
+function update() 
+{
+	control.update();
+    stats.update();
+
+    if (mode == 1)
+        modeInfo.innerHTML = "(RTTexture Mode)";
+    else
+        modeInfo.innerHTML = "(Model Mode)";
+}
+
+function render() 
+{
+	renderer.setClearColor(0x00ffff);
+	renderer.render(sceneRTT, camera, rtTexture, true);
+
+	renderer.setClearColor(0x888888);
+	renderer.render(scene, camera);
+}
+
+</script>
+
+</body>
+</html>
