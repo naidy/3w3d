@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+	body {
+		background-color: #fff;
+		color: #111;
+		margin: 0px;
+		overflow: hidden;
+		font-family: Monospace;
+		font-size: 30px;
+		position: absolute;
+	}
+	#info {
+		position: absolute;
+		top: 10px; width: 100%;
+		
+		padding: 5px;
+		text-align: center;
+		color: #ffff00;
+	}
+</style>
+</head>
+
+<body>
+
+<div id="info">hw7</div>
+
+<script src="http://cdnjs.cloudflare.com/ajax/libs/three.js/r70/three.min.js"></script>
+<script src="https://dl.dropboxusercontent.com/u/3587259/Code/Threejs/OrbitControls.js"></script>
+<script src="js/Stats.js"></script>
+<script src="js/Puck.js"></script>
+
+<script>
+
+var camera, scene, renderer, geometry, material, mesh, controls, stats;
+var clock = new THREE.Clock();
+var puck, pucks = [], pID = 0;
+var ground;
+
+init();
+animate();
+    
+function init() {
+    //scene
+    scene = new THREE.Scene();
+
+    //camera
+    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+    camera.position.z = 500;
+    scene.add(camera);
+
+    //wall
+    geometry = new THREE.BoxGeometry(220, 30, 10);
+    material = new THREE.MeshBasicMaterial({
+        transparent: true,
+        color: 0xff2387,
+        opacity: 0.4
+    });
+
+    mesh = new THREE.Mesh(geometry, material);
+    //mesh.position.set(0, 15, 105);
+    //scene.add(mesh);
+    var w = new THREE.Mesh(new THREE.BoxGeometry(55, 30, 10),
+                           material);
+    w.position.set (-82, 15, 105);
+    scene.add (w);
+    
+    var w2 = w.clone();
+    w2.position.set (82, 15, 105);
+    scene.add (w2);
+    
+    mesh2 = mesh.clone();
+    mesh2.position.set(0, 15, -105);
+    scene.add(mesh2);
+    mesh3 = mesh.clone();
+    mesh3.rotation.y = Math.PI / 2;
+    mesh3.position.set(105, 15, 0);
+    scene.add(mesh3);
+    mesh4 = mesh.clone();
+    mesh4.rotation.y = Math.PI / 2;
+    mesh4.position.set(-105, 15, 0);
+    scene.add(mesh4);
+    
+    //puck
+    for (var i = 0; i < 1; i++)
+    {
+        puck = new Puck();
+        puck.pos = new THREE.Vector3 (0, 2, 0);
+        puck.vel = new THREE.Vector3 (Math.random()*50, 0, Math.random()*70);
+    }
+
+    //ground
+    ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200, 130, 130),
+    new THREE.MeshPhongMaterial({
+        color: 0x888888,
+        side: THREE.DoubleSide
+    }));
+
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
+
+    //ambientLight
+    var ambientLight = new THREE.AmbientLight(0x111111);
+    scene.add(ambientLight);
+
+    //stats
+    stats = new Stats();
+    stats.domElement.style.position = 'absolute';
+    stats.domElement.style.top = '0px';
+    stats.domElement.style.zIndex = 100;
+
+    //renderer
+    renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(0x888888);
+
+    //controls
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    
+    //timeout
+    setTimeout(timeout, 5000);
+
+    document.body.appendChild(renderer.domElement);
+    document.body.appendChild(stats.domElement);
+}
+
+function timeout ()
+{
+    puck = new Puck();
+    puck.pos = new THREE.Vector3 (0, 2, 0);
+    puck.vel = new THREE.Vector3 (Math.random()*50, 0, Math.random()*70);
+
+    //if (pucks.length < 10) 
+        setTimeout(timeout, 5000);
+}
+
+function animate() {
+    var dt = clock.getDelta();
+    
+    for (var i = 0; i < pucks.length; i++)
+    {
+        if (pucks[i] != undefined)
+        {
+        	pucks[i].update (dt);
+        	pucks[i].collision();
+        }
+    }
+
+    controls.update();
+    stats.update();
+
+    requestAnimationFrame(animate);
+    render();
+}
+
+function render() {
+    renderer.render(scene, camera);
+}
+
+</script>
+
+</body>
+</html>
