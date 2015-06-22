@@ -3,52 +3,151 @@
 <head>
 <style>
 	body {
-		background-color: #fff;
+		/*background-color: #fff;
 		color: #111;
 		margin: 0px;
 		overflow: hidden;
 		font-family: Monospace;
 		font-size: 30px;
-		position: absolute;
+		position: absolute;*/
 	}
 	#info {
 		position: absolute;
-		top: 10px; width: 100%;
+		top: 180px; width: 60%;
 		
 		padding: 5px;
 		text-align: center;
 		color: #ffff00;
-	}
+	}#event {
+        position: absolute;
+        top: 220px; width: 60%;
+        
+        padding: 5px;
+        text-align: center;
+        color: #00ff00;
+    }
+    #score {
+        position: absolute;
+        top: 150px; width: 55%;
+        
+        padding: 5px;
+        text-align: right;
+        color: #00ff00;
+    }
+    #life {
+        position: absolute;
+        top: 200px; width: 55%;
+        
+        padding: 5px;
+        text-align: right;
+        color: #ff1234;
+    }
+    #time {
+        position: absolute;
+        top: 250px; width: 55%;
+        
+        padding: 5px;
+        text-align: right;
+        color: #ffff34;
+    }
+    #level {
+        position: absolute;
+        top: 300px; width: 55%;
+        
+        padding: 5px;
+        text-align: right;
+        color: #1234ff;
+    }
+    #container {
+        position: absolute;
+        width: 60%;
+        float: left;
+        margin-top: 0px;
+    }
+    #cnvsFrame {
+        height: 0;
+        padding-bottom: 70%;
+    }
 </style>
 </head>
 
 <body>
 
-<div id="info">hw7</div>
+<h1 style="text-align:center"> My First Game </h1>
+<hr>
+
+<div id="container">
+<div id="cnvsFrame">
+    <canvas id="cnvs"> </canvas>
+</div>
+</div>
+
+<div style="float:right; margin-right: 150px; width:20%;">Name: 
+    <input id="user" type="text" value="">
+    <br/>
+    <br/>
+    <button id="login" onclick="javascript:userLogin()">Login</button>
+    <button id="start" style="visibility: hidden" onclick="javascript:GameStart()">Start</button>
+    <p id="message"></p>
+</div>
+
+<div id="info"></div>
+<div id="event"></div>
+<div id="score">SCORE: 0</div>
+<div id="life">LIFE: 5</div>
+<div id="time">TIME: 0:00</div>
+<div id="level">LEVEL: 1</div>
 
 <script src="http://cdnjs.cloudflare.com/ajax/libs/three.js/r70/three.min.js"></script>
 <script src="https://dl.dropboxusercontent.com/u/3587259/Code/Threejs/OrbitControls.js"></script>
 <script src="js/Stats.js"></script>
 <script src="js/Puck.js"></script>
+<script src="js/System.js"></script>
 
 <script>
 
 var camera, scene, renderer, geometry, material, mesh, controls, stats;
 var clock = new THREE.Clock();
-var puck, pucks = [], pID = 0;
-var ground;
+var puck, pucks = [], pID = 0, puckNum = 20, puckCount = 1;
+var ground, racket, mouse = new THREE.Vector2();
+var theCanvas, theCanvasFrame;
+var name;
+
+//HUD
+var lifePoint = 5, score = 0, puck_on = 0;
+var TIME_SPACE = 30;  // sec
+var MAX_VEL = 500;   // pucks' max vel
+var scoreGain = 1;
+var text_Score, text_Life, text_Time, text_Event, text_Level, text_Info;
+var text_Message;
+var m = 0, s = 0, t = 0;
+var time_cnt, time_evt;
+
+var game_progress = false;
 
 init();
 animate();
     
 function init() {
+    theCanvas = document.getElementById("cnvs");
+    theCanvasFrame = document.getElementById("cnvsFrame");
+    //renderer
+    renderer = new THREE.WebGLRenderer({
+        canvas: theCanvas,
+        antialias: true
+    });
+    var ww = theCanvasFrame.clientWidth;
+    var hh = theCanvasFrame.clientHeight;
+    renderer.setSize(ww, hh);
+    renderer.setClearColor(0x888888);
+
     //scene
     scene = new THREE.Scene();
 
     //camera
-    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
-    camera.position.z = 500;
-    scene.add(camera);
+    camera = new THREE.PerspectiveCamera(50, theCanvasFrame.clientWidth / theCanvasFrame.clientHeight, 1, 10000);
+    camera.position.set (0, 250, 200);
+    camera.lookAt (new THREE.Vector3 (0, 0, 0));
 
     //wall
     geometry = new THREE.BoxGeometry(220, 30, 10);
@@ -61,14 +160,14 @@ function init() {
     mesh = new THREE.Mesh(geometry, material);
     //mesh.position.set(0, 15, 105);
     //scene.add(mesh);
-    var w = new THREE.Mesh(new THREE.BoxGeometry(55, 30, 10),
+    /*var w = new THREE.Mesh(new THREE.BoxGeometry(55, 30, 10),
                            material);
     w.position.set (-82, 15, 105);
     scene.add (w);
     
     var w2 = w.clone();
     w2.position.set (82, 15, 105);
-    scene.add (w2);
+    scene.add (w2);*/
     
     mesh2 = mesh.clone();
     mesh2.position.set(0, 15, -105);
@@ -81,14 +180,29 @@ function init() {
     mesh4.rotation.y = Math.PI / 2;
     mesh4.position.set(-105, 15, 0);
     scene.add(mesh4);
+
+    //racket
+    var racketGeo = new THREE.BoxGeometry(60, 30, 10);
+    var racketMat = new THREE.MeshBasicMaterial({
+        transparent: true,
+        color: 0x00ffff,
+        opacity: 0.4
+    });
+    racket = new THREE.Mesh (racketGeo, racketMat);
+    racket.position.set (0, 15, 105);
+    scene.add (racket);
     
     //puck
-    for (var i = 0; i < 1; i++)
+    for (var i = 0; i < puckNum; i++)
     {
         puck = new Puck();
         puck.pos = new THREE.Vector3 (0, 2, 0);
-        puck.vel = new THREE.Vector3 (Math.random()*50, 0, Math.random()*70);
+        //puck.vel = new THREE.Vector3 (Math.random()*200-100, 0, Math.random()*200-100);
+        puck.mesh.visible = false;
+        puck.pointLight.intensity = 0.0;
+        pucks[pID-1] = puck;
     }
+    pucks[0].add();
 
     //ground
     ground = new THREE.Mesh(new THREE.PlaneGeometry(200, 200, 130, 130),
@@ -110,48 +224,124 @@ function init() {
     stats.domElement.style.top = '0px';
     stats.domElement.style.zIndex = 100;
 
-    //renderer
-    renderer = new THREE.WebGLRenderer();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setClearColor(0x888888);
-
     //controls
-    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    //controls = new THREE.OrbitControls(camera, renderer.domElement);
     
     //timeout
-    setTimeout(timeout, 5000);
+    //setTimeout(timeout, TIME_SPACE*1000);
+    //setTimeout(timeCount, 0);
+
+    //text HUD
+    text_Score = window.document.getElementById ('score');
+    text_Life = window.document.getElementById ('life');
+    text_Time = window.document.getElementById ('time');
+    text_Info = window.document.getElementById ('info');
+    text_Level = window.document.getElementById ('level');
+    text_Event = window.document.getElementById ('event');
+    text_Message = window.document.getElementById ('message');
 
     document.body.appendChild(renderer.domElement);
     document.body.appendChild(stats.domElement);
+    window.addEventListener('resize', onWindowResize, false);
+    document.addEventListener('mousemove', onDocumentMouseMove, false);
 }
 
 function timeout ()
 {
-    puck = new Puck();
-    puck.pos = new THREE.Vector3 (0, 2, 0);
-    puck.vel = new THREE.Vector3 (Math.random()*50, 0, Math.random()*70);
+    if (game_progress)
+    {
+        if (puckCount < puckNum)
+        {
+            pucks[puckCount].add();
+            puckCount++;
+        }
 
-    //if (pucks.length < 10) 
-        setTimeout(timeout, 5000);
+        text_Info.innerHTML = "New Puck ! ";
+        //RandomEvent();
+        text_Event.innerHTML = "Bonus Score: + "+scoreGain*1000;
+        score += scoreGain*1000;
+        scoreGain ++;
+        time_evt = setTimeout(timeout, TIME_SPACE*1000);
+        setTimeout(clearText, 3000);
+    }
+}
+
+function clearText ()
+{
+    text_Info.innerHTML = "";
+    text_Event.innerHTML = "";
+}
+
+function timeCount ()
+{
+    if (game_progress)
+    {
+        t++;
+        s = t%60;
+        m = Math.floor(t/60);
+
+        time_cnt = setTimeout(timeCount, 1000);
+    }
+}
+
+function onDocumentMouseMove(event) {
+    if (!game_progress)
+        return;
+
+    event.preventDefault();
+    mouse.x = (event.clientX / theCanvasFrame.clientWidth) * 2 - 1;
+    mouse.y = -(event.clientY / theCanvasFrame.clientHeight) * 2 + 1;
+
+    racket.position.x = mouse.x * 200;
+    if (racket.position.x < -70)
+        racket.position.x = -70;
+    if (racket.position.x > 70)
+        racket.position.x = 70;
+}
+
+function onWindowResize() {
+    camera.aspect = theCanvasFrame.clientWidth / theCanvasFrame.clientHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(theCanvasFrame.clientWidth, theCanvasFrame.clientHeight);
 }
 
 function animate() {
-    var dt = clock.getDelta();
-    
-    for (var i = 0; i < pucks.length; i++)
+    if (game_progress)
     {
-        if (pucks[i] != undefined)
+        var dt = clock.getDelta();
+        for (var i = 0; i < pucks.length; i++)
         {
-        	pucks[i].update (dt);
-        	pucks[i].collision();
+            if (pucks[i] != undefined)
+            {
+            	pucks[i].update (dt);
+            	pucks[i].collision();
+            }
         }
-    }
 
-    controls.update();
+        text_Score.innerHTML = "SCORE: "+score;
+        text_Life.innerHTML = "LIFE: "+lifePoint;
+        text_Time.innerHTML = "TIME: "+m+":";
+        text_Level.innerHTML = "LEVEL: "+scoreGain;
+        if (s < 10)
+            text_Time.innerHTML += "0"+s;
+        else
+            text_Time.innerHTML += ""+s;
+    }
+    
+    render();
+    update();
+    requestAnimationFrame(animate);
+}
+
+function update()
+{
+    //controls.update();
     stats.update();
 
-    requestAnimationFrame(animate);
-    render();
+    if (game_progress)
+    {
+        score += scoreGain;
+    }
 }
 
 function render() {
